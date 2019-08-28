@@ -1,0 +1,46 @@
+\documentclass[doktyp=semarbeit, sprache=german]{TUBAFarbeiten}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx} 
+\usepackage{amsmath}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{url}
+\captionsetup{compatibility=false}
+\bibliographystyle{unsrt}
+\TUBAFFakultaet{Fakultät für Mathematik und Informatik}
+\TUBAFInstitut{Institut für Informatik}
+\TUBAFLehrstuhl{Lehrstuhl für Betriebssysteme und Kommunikationstechnologien}
+\TUBAFTitel{Aufbau eines Prototyps für verteilte CUDA Programmierung}
+\TUBAFUntertitel{Development of a prototype for distributed CUDA programming}
+\TUBAFKorrektor{Dr. rer. nat. Martin Reinhardt}
+\TUBAFBetreuer{Prof. Dr. Konrad Froitzheim}
+\TUBAFAutor[S. Dressel]{Samuel Dressel}
+\TUBAFStudiengang{Angewandte Informatik}
+\TUBAFVertiefung{Parallelrechner}
+\TUBAFMatrikel{59963}
+\TUBAFDatum{\today}
+\begin{document}
+\maketitle
+\tableofcontents
+\TUBAFErklaerungsseite
+\newpage
+\section{Einleitung}
+\section{Grundlagen}
+\subsection{Message-Passing-Interface (MPI)}
+Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle für die Kommunikation zwischen verteilten Prozessen.
+\subsection{CUDA-Aware MPI}
+\section{Technischer Aufbau}
+Für den Aufbau des Mini-Clusters werden zunächst folgende Dinge benötigt:
+\begin{itemize}
+	\item Nvidia Jetson Nano (3x)
+	\item Ethernet-Kabel (4x)
+	\item 4-Port Ethernet Switch
+	\item Optional: 40mm Lüfter (3x, in diesem Fall wurde der Noctua NF-A4x20 verwendet)
+\end{itemize}
+Der technische Aufbau beginnt mit der physischen Verbindung der Nvidia Jetson Nanos. Dazu werden diese alle via Ethernet-Kabel mit einem Ethernet Switch verbunden, welcher wiederum durch LAN mit einem Router und dadurch mit dem Internet verbunden ist. An sich benötigt der Cluster keinen Internetzugang, für die Einrichtung ist dieser jedoch unersetzlich.
+\section{CUDA und MPI}
+\section{Benchmarking und Test ausgewählter Algorithmen}
+\section{Fazit}
+\newpage
+\end{document}
