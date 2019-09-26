@@ -11,6 +11,9 @@
   language=bash,
   basicstyle=\ttfamily
 }
+\lstnewenvironment{CPP}
+  {\lstset{language=C++,basicstyle=\ttfamily\small,frame=none}}
+  {}
 \captionsetup{compatibility=false}
 \bibliographystyle{unsrt}
 \TUBAFFakultaet{Fakultät für Mathematik und Informatik}
@@ -33,21 +36,30 @@
 \section{Einleitung}
 \section{Grundlagen}
 \subsection{Message-Passing-Interface (MPI)}
-Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle für die Kommunikation zwischen verteilten Prozessen.
+Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle für die Kommunikation auf verteilten Systemen. Es wird häufig wissenschaftlichen und ingenieurstechnischen Domänen verwendet, um größere Problemstellungen effizienter zu bearbeiten und zu lösen \cite{MPIBook}. MPI ist speziell für die Verwendung auf verteilten Systemen mit ebenso verteiltem Speicher konstruiert. Dabei kann jeder Prozessor, der Teil der Bearbeitung eines Workloads ist, nur auf seinen lokalen Speicher zugreifen. Es können jedoch durch Messages Daten von einem lokalen Speicher in den anderen übertragen werden.
+\\MPI ist als Bibliothek implementiert, nicht als Programmiersprache. Dabei existieren Implementierungen für zahlreiche Programmiersprache wie C, C++, Python oder Fortran \cite{ScriptPC}.
+\\Die grundlegendste Art der Kommunikation findet zwischen zwei Prozessen statt. Dabei übermittelt ein Sendeprozess Informationen an einen Empfangsprozess.
+\begin{figure}
+	\centering
+	\captionsetup{justification=centering} 
+	\includegraphics[width=1.0\textwidth]{images/MPIModell.jpg}
+	\caption{Grundlegendes Konzept von MPI: Ein Sendeprozess sendet Daten an einen Empfangsprozess über ein Netzwerk. Jeder Prozess kann nur unmittelbar auf seinen zugehörigen lokalen Speicher zugreifen.}
+	\label{img:mpimodell}
+\end{figure}
+Prozesse lassen sich außerdem in Gruppen zusammenfassen, wobei jeder Prozess eine eindeutige Nummer (Rang bzw. Rank) zugeorndet wird. Der Zugriff auf diese Gruppe wird über einen Kommunikator gesteuert. Innerhalb dieser Gruppe können mithilfe einer Boradcast-Operation von einem Masterprozess allen anderen Prozessen Nachrichten gesendet werden. Diese zurückgegebenen Daten werden mithilfe einer Gather-Funktion wieder eingesammelt.
+\\Dieses Konzept wird auch für den im Rahmen dieser Arbeit erstellten Minicluster genutzt: Der Workload wird von dem Masterknoten definiert und dann über das Message-Passing-Interface and die Work-Nodes (Arbeitsknoten) gesendet. Dies erlaubt dann letztendlich die Verteilung der Workload innerhalb des Clusters.
 \subsection{CUDA}
-%https://www.bigdata-insider.de/was-ist-cuda-a-851005/
-Im Vergleich zu einer CPU besteht eine Grafikkarte aus einer großen Anzahl parallel nutzbarer Kerne, die eine Vielzahl von Berechnungen parallel ausführen können. Beispielsweise besitzt eine \textit{NVIDIA RTX 2080} 2944 CUDA-Kerne, während die meisten CPUs 8 bis 16 Kerne besitzen. %https://www.anandtech.com/show/14663/the-nvidia-geforce-rtx-2080-super-review. 
+Im Vergleich zu einer CPU besteht eine Grafikkarte aus einer großen Anzahl parallel nutzbarer Kerne, die eine Vielzahl von Berechnungen parallel ausführen können. Beispielsweise besitzt eine \textit{NVIDIA RTX 2080} 2944 CUDA-Kerne, während die meisten CPUs 8 bis 16 Kerne besitzen \cite{RTXCores}. 
 Natürlich sind die Kerne ein GPU in ihrer Struktur und Instruktionskomplexität wesentlich einfacher, da sie dafür ausgelegt sind, Aufgaben als Gruppe zu bearbeiten.
 Eine CPU ist auf generelle Programmanforderungen ausgelegt und muss eine Vielzahl von Befehlen und Datentypen unterstützen. Eine GPU ist hingegen auf Grafikberechnungen spezialisiert und in ihrer grundlegenden Funktion für Pixelberechnungen konzipiert worden.
 \\Aufgrund dieser Struktur lassen sich GPUs aber nicht nur für Grafikberechnungen nutzen, sondern auch bei der Berechnung von wissenschaftlichen Problemen.
-Um diese Architektur nutzen und steuern zu können, wurde die Programmierschnittstelle CUDA (Compute Unified Device Architecture} entwickelt. CUDA wurde dabei von NVIDIA entwickelt und erlaubt die Beschleunigung von Programmen, indem neben der CPU bestimmte Programmteile von einer oder mehreren GPUs parallelisiert bearbeitet werden.
-\\CUDA besitzt Bindings für viele wissenschaftlich genutzte Programmiersprachen wie C/C++, Fortran oder Python und ist mit allen herkömmlichen Betriebssystemen kompatibel. 
+Um diese Architektur nutzen und steuern zu können, wurde die Programmierschnittstelle CUDA (\textit{Compute Unified Device Architecture}) entwickelt. CUDA wurde dabei von NVIDIA entwickelt und erlaubt die Beschleunigung von Programmen, indem neben der CPU bestimmte Programmteile von einer oder mehreren GPUs parallelisiert bearbeitet werden.
+\\CUDA besitzt Bindings für viele wissenschaftlich genutzte Programmiersprachen wie C/C++, Fortran oder Python und ist mit allen herkömmlichen Betriebssystemen kompatibel \cite{CUDADefinition}.
 \subsection{CUDA und MPI}
-Sowohl CUDA als auch MPI dienen in ihrer grundlegenden Funktion zur Bereitstellung einer Schnittstelle von parallelen bzw. verteilten Berechnungen. MPI erlaubt es wie schon oben erwähnt, bestimmte Aufgaben innerhalb eines verteilten Systems zu koordinieren und aufzuteilen. Grundsätzlich wird dabei nur die Rechenleistung der einzelnen Prozessoren genutzt. 
-%https://devblogs.nvidia.com/introduction-cuda-aware-mpi/
+Sowohl CUDA als auch MPI dienen in ihrer grundlegenden Funktion zur Bereitstellung einer Schnittstelle von parallelen bzw. verteilten Berechnungen. MPI erlaubt es wie schon oben erwähnt, bestimmte Aufgaben innerhalb eines verteilten Systems zu koordinieren und aufzuteilen. Grundsätzlich wird dabei nur die Rechenleistung der einzelnen Prozessoren genutzt \cite{CUDAAwareMPI}.
 Für eine weitere Optimierung durch Verwendung von verschiedenen GPUs in einem verteilten System ist zusätzlich CUDA als GPU-Schnittstelle notwendig.
 Dabei ergibt sich jedoch folgendes Problem: Standartmäßig werden bei der Verwendung von MPI nur Zeiger auf den Hauptspeicher des Hosts weitergeleitet. Jedoch müssen bei der Kombination von MPI und CUDA meist GPU-Buffer gesendet werden. Hierzu müssen diese Buffer zunächst in den Hauptspeicher kopiert werden, um dann gesendet werden zu können:
-\begin{lstlisting}
+\begin{CPP}
 //MPI rank 0
 cudaMemcpy(s_buf_h,s_buf_d,size,cudaMemcpyDeviceToHost);
 MPI_Send(s_buf_h,size,MPI_CHAR,1,100,MPI_COMM_WORLD);
@@ -55,17 +67,23 @@ MPI_Send(s_buf_h,size,MPI_CHAR,1,100,MPI_COMM_WORLD);
 //MPI rank 1
 MPI_Recv(r_buf_h,size,MPI_CHAR,0,100,MPI_COMM_WORLD, &status);
 cudaMemcpy(r_buf_d,r_buf_h,size,cudaMemcpyHostToDevice);
-\end{lstlisting}
+\end{CPP}
 Diese Tatsache führt zu erheblichen Zeitverlusten und kann eine Optimierung von Berechnung mit CUDA und MPI einschränken. Daher wurde eine Vielzahl von MPI-Implementation wie \textit{MVAPICH2} oder \textit{OpenMPI} um eine spezielle CUDA-Unterstützung erweitert. Diese Unterstützung trägt den Namen \textit{CUDA-aware MPI}. Mit CUDA-aware MPI können GPU-Buffer direkt an MPI weitergegeben werden:
-\begin{lstlisting}
+\begin{CPP}
 //MPI rank 0
 MPI_Send(s_buf_d,size,MPI_CHAR,1,100,MPI_COMM_WORLD);
 
 //MPI rank n-1
 MPI_Recv(r_buf_d,size,MPI_CHAR,0,100,MPI_COMM_WORLD, &status);
-\end{lstlisting}
+\end{CPP}
 Dabei muss eine CUDA-aware MPI-Implementation unterscheiden, ob der jeweilige Buffer auf dem Hostspeicher oder dem Speicher der GPU liegt. Seit der CUDA-Version 4.0 wurde das CUDA-Feature UVA (\textit{Unified Virtual Addressing}) eingeführt, welches den Hauptspeicher und den Gerätespeicher kombiniert und einem virtuellen Adressraum zusammenfasst.
-%Bild
+\begin{figure}
+	\centering
+	\captionsetup{justification=centering} 
+	\includegraphics[width=1.0\textwidth]{images/CUDAUVA.jpg}
+	\caption{Links ist das Speicherhandling ohne UVA abgebildet, rechts das Speicherhandling mit UVA. Bei der Nutzung von Unified Virtual Addressing werden die Speicherräume aller System- und Gerätespeicher in einem virtuellen Adressraum zusammengefasst.}
+	\label{img:cudauval}
+\end{figure}
 Ein weiteres Feature von CUDA, eingeführt mit der Version 5.0, ist die \textit{GPUDirect}-Funktionalität. Dies erlaubt mithilfe des \textit{Remote Direct Memory Access} (RDMA) das direkte Senden von Grafikspeicher an den Netzwerkadapter ohne Routing über den jeweiligen Hauptspeicher. 
 %Bild
 Diese Funktionen bilden die Grundlage für eine gelungene Optimierung von verteilten Berechnungen auf verteilten Systemen durch Nutzung von CUDA-aware MPI.
