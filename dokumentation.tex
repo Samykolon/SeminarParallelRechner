@@ -7,12 +7,19 @@
 \usepackage{booktabs}
 \usepackage{url}
 \usepackage{listings}
+\usepackage{xcolor}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+
 \lstset{
   language=bash,
   basicstyle=\ttfamily
 }
 \lstnewenvironment{CPP}
-  {\lstset{language=C++,basicstyle=\ttfamily\small,frame=none}}
+  {\lstset{language=C++,basicstyle=\ttfamily\small,frame=none,extendedchars=false,showstringspaces=false,tabsize=4,commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{orange},
+    stringstyle=\color{gray}}}
   {}
 \captionsetup{compatibility=false}
 \bibliographystyle{unsrt}
@@ -200,10 +207,36 @@ sudo nano /etc/fstab
 
 master:/cloud /cloud nfs rsize=8192,wsize=8192,timeo=14,intr
 \end{lstlisting}
-Der technische Aufbau und die Konfiguration des Clusters ist hiermit abgeschlossen.
-\section{CUDA und MPI}
-
+Manuell lässt sich ein gemeinsamer Arbeitsordner auch manuell mounten:
+\begin{lstlisting}
+sudo mount master:/cloud /cloud
+\end{lstlisting}
+Je nach verwendetem Linuxbetriebssystem muss nun noch sichergestellt werden, dass das CUDA-Toolkit sowie MPI mit Cuda-Unterstützung installiert ist. Das Cuda-Toolkit kann über die offizielle Website heruntergeladen werden (\cite{CudaToolkit}); bei der Konfiguration und Installation von MPI muss je nach Implementierung die Cuda-Unterstützung manuell eingestellt werden.
+\\\\Der technische Aufbau und die Konfiguration des Clusters ist an dieser Stelle abgeschlossen. Wird wie in dieser Arbeit ebenfalls betrachtet ein weiteres cudafähiges Gerät in den Minicluster eingebunden, so geschieht die Konfiguration analog dieser Schrittfolge.
 \section{Benchmarking und Test ausgewählter Algorithmen}
+In diesem Kapitel soll die Implementierung ausgewählter Algorithmen vorgestellt und mit verschiedenen Setups getestet und ausgewertet werden.
+\subsection{Einfache Vektoraddition}
+Um das Zusammenspiel von Cuda und MPI besser zu verstehen, wird zunächst ein einfacher Algorithmus zur Vektorenaddition betrachtet. Der Quellcode findet sich dabei in Anhang B. Im wesentlichen geschieht bei der implementierten Vektoraddition mithilfe von Cuda und MPI folgendes: Zunächst wird MPI standartmäßig initialisiert. Dann wird überprüft, ob die angegeben MPI-Hosts cudafähige Geräte besitzen und wenn ja, wie viele. Nach der Allokieren des Speichers auf dem Host und dem Initalisieren der beiden Vektoren wird der Speicher für die verteilte Berechnung allokiert. Dies geschieht in diesem Fall nicht durch eine einfache Allokierung mit \texttt{cudaMalloc}, sondern durch \texttt{cudaMallocManaged}. Dies bewirkt die Verwendung von dem sogenannten \textit{Unified Memory} \cite{UnifiedMemory}. Unified Memory stellt einen einzelnen Speicheradressraum für alle Prozessoren in einem System bereit. Der Zugriff der einzelnen Prozessoren (in diesem Fall die einzelnen Grafikprozessoren) auf den Speicher wird durch Cuda selbst gehandhabt.
+\\Nach der Allokierung des Speichers erfolgt die Aufteilung der Vektoraddition auf die einzelnen Grafikprozessoren durch die Scatterfunktionalität von MPI. Anschließend folgt der Aufruf des Kernels. Die Aufteilung auf den einzelnen Prozessoren an sich erfolgt in diesem Fall durch eine sogenannte Grid-Stride-Loop (siehe \cite{GridStride}).
+\\\\Für das Benchmarking dieses Algorithmus ist nun zunächst die Zeit interessant, welche der Kernel benötigt und welche das Programm an sich insgesamt benötigt. Eine Zusammenfassung von generierten Ergebnissen ist in der nachfolgenden Tabelle \ref{tab:addition} ersichtlich.
+\begin{table}[]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}ccccccccc@{}}
+\multicolumn{1}{c|}{}            & \multicolumn{2}{c|}{1 GPU - 1 Rank}         & \multicolumn{2}{c|}{1 GPU - 4 Ranks}         & \multicolumn{2}{c|}{3 GPUs - 3 Ranks}        & \multicolumn{2}{c|}{4 GPUs - 4 Ranks} \\
+\multicolumn{1}{c|}{Vektorgröße} & Zeit Kernel & \multicolumn{1}{c|}{Zeit MPI} & Zeit Kernel & \multicolumn{1}{c|}{Zeit MPI}  & Zeit Kernel & \multicolumn{1}{c|}{Zeit MPI}  & Zeit Kernel        & Zeit MPI         \\ \midrule
+\multicolumn{1}{c|}{5 000 000}   & 26.3 ms     & \multicolumn{1}{c|}{288 ms}   & 7.9 ms      & \multicolumn{1}{c|}{1158.2 ms} & 24.8 ms     & \multicolumn{1}{c|}{7405.1 ms} & 27.1 ms            & 10935.5 ms       \\
+\multicolumn{1}{c|}{10 000 000}  & 44.1 ms     & \multicolumn{1}{c|}{516 ms}   & 22.5 ms     & \multicolumn{1}{c|}{1850.6 ms} & 34.3 ms     & \multicolumn{1}{c|}{14691 ms}  & 32.4 ms            & 21829.1 ms       \\
+\multicolumn{1}{c|}{15 000 000}  & 51.3 ms     & \multicolumn{1}{c|}{743 ms}   & 48.7 ms     & \multicolumn{1}{c|}{2746.2 ms} & 67.6 ms     & \multicolumn{1}{c|}{22092 ms}  & 45.2 ms            & 32592.9 ms       \\
+\multicolumn{1}{c|}{20 000 000}  & 74.5 ms     & \multicolumn{1}{c|}{977.4 ms} & 52.5 ms     & \multicolumn{1}{c|}{4670.4 ms} & 70.2 ms     & \multicolumn{1}{c|}{29351 ms}  & 62.7 ms            & 43554.5 ms       \\ \midrule
+\multicolumn{9}{l}{}                                                                                                                                                                                                
+\end{tabular}%
+}
+\caption{Übersicht der Ergebnisse des Benchmarkings des Vektoradditionsalgorithmus. Verglichen wurden hier vier verschiedene Setups: Zuerst wurde der Algorithmus mit einem Rank auf einem Jetson Nano getestet, dann mit vier Ranks auf einem Jetson Nano. Bei dem Test mit 3 GPUs handelt es um drei Nvidia Jetson Nanos; bei dem Test mit 4 GPUs um drei Nvidia Jetson Nanos und einen Nvidia Jetson TX2.}
+\label{tab:addition}
+\end{table}
+\\Betrachet man die Kernel Zeiten, so lässt sich feststellen, dass die insgesamte Laufzeit bei der Verwendung eines Grafikprozessors mit einem Rank am Besten ist und die benötigte Kernel-Zeit bei der Verwendung eines Grafikprozessors mit vier Ranks am Besten ist. Die Zeit, welche die Zuhilfenahme von anderen Grafikprozessoren zur Lösung des Problems benötigt, ist wesentlich höher.
+Dennoch lassen sich in diesem Fall die Vorteile und die Nachteile der gewählten Implementierung erkennen. Das Problem der Vektoraddition ist von seiner Komplexität sehr gering. Somit kann insgesamt weniger Zeit durch die Verwendung von mehreren Grafikprozessoren eingespart werden als durch die Datenübertragungszeit von MPI und durch das automatisierte Speichermanagement von Cuda durch die Verwendung von Unified Memory erzeugt wird. Man sieht das beispielsweise bei Vergleich der Benchmarking-Zeiten von einem Grafikprozessor mit einem MPI-Rank und der von einem Grafikprozessor mit vier MPI-Ranks. Bei der Verwendung von vier Ranks benötigt der Kernel teilweise nur ein Viertel der Zeit (statt $26.3  ms$ nur $7.9  ms$ bei einer Vektorgröße von $5 000 000$). Gleichzeitig ist die gesamte Laufzeit viermal so hoch.
 \section{Fazit}
 \newpage
 \addcontentsline{toc}{section}{\protect\numberline{}{Anhang}} 
@@ -215,6 +248,226 @@ Der technische Aufbau und die Konfiguration des Clusters ist hiermit abgeschloss
 	\caption{Der im Rahmen dieses Projektes erstellte Mini-Cluster. Zur besseren Nutzung wurden sowohl die Nvidia Jetson Nanos als auch der Switch durch seitliche Leisten auf einem Holzbrett fixiert. Um die vollständige Leistung durch die Nutzung des Powermodus zu erzielen, wurde desweiteren auf jedem Jetson Nano ein 40mm Lüfter installiert. Für die Steuerung dieser Lüfter wurde ein externer Lüfter-Controller genutzt, weil die Lüfter eine Betriebsspannung von 12V benötigen, der Jetson Nano jedoch nur Lüfter mit 5V Betriebsspannung unterstützt.}
 	\label{img:foto1}
 \end{figure}
+\newpage
+\section{Quellcode Vektoraddition}
+\begin{CPP}
+#include <cstdlib>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <string>
+
+#include <mpi.h>
+#include <unistd.h>
+
+#define BLOCKSIZE 256
+
+// Fehlerbehandlung
+
+#define TRY(command) { cudaError_t cudaStatus = command; 
+  if (cudaStatus != cudaSuccess) 
+  {fprintf (stderr, "Error %d - %s\n", cudaStatus, 
+  cudaGetErrorString(cudaStatus));
+  goto Error; }}
+
+// Berechnung der Summe zweier Vektoren
+
+__global__ void sum(int n, float* x, float* y) {
+
+	// Grid-Stride-Loop	
+
+  	size_t const index = blockIdx.x * blockDim.x + threadIdx.x;
+  	size_t const stride = blockDim.x * gridDim.x;
+  	for (size_t i = index; i < n; i += stride) {
+
+    		y[i] = x[i] + y[i];
+  	}
+
+	__syncthreads();
+}
+
+
+int main(int argc, char* argv[]) {
+  	
+	int N; // Groesse des Vektors
+
+  	N = atoi(argv[1]); // Vektorgroesse aus Commandline-Paramter lesen
+
+	// Check Input
+
+	if (N <= 0) {
+
+		printf("Die Vektorgroesse darf nicht Null oder negativ sein!");
+		return EXIT_FAILURE;
+	}
+
+	
+	
+	// MPI-Init		
+
+  	MPI_Init(&argc, &argv);
+
+ 	int MPIRank, MPISize;
+  	MPI_Comm_rank(MPI_COMM_WORLD, &MPIRank);
+  	MPI_Comm_size(MPI_COMM_WORLD, &MPISize);
+
+	// Ueberpruefung, ob und wie viele cudafaehige Geraete vorhanden sind
+
+  	int devicenumber;
+  	cudaError cudaResult = cudaGetDeviceCount(&devicenumber);
+  	if (cudaResult != cudaSuccess || devicenumber == 0) {
+
+    		printf("Es wurden keine cudafaehigen Geraete gefunden!");
+    		MPI_Finalize();
+   		return EXIT_FAILURE;
+  	}
+
+	// Auslesen der Cuda-Device-Properties
+
+  	for (int i = 0; i < devicenumber; ++i) {
+
+    		cudaDeviceProp properties;
+    		cudaGetDeviceProperties(&properties, i);
+    		std::printf("Rank: %d CUDA device %d name: %s \n", MPIRank,
+		   i, properties.name);
+  	}
+
+	// Definition der zwei Vektoren
+
+  	float* x;
+  	float* y;
+
+	double MPIStart, MPIEnd, MPITimePassed;
+	MPIStart = MPI_Wtime();
+
+	// Initialisieren der Vektoren
+
+  	if (MPIRank == 0) {
+
+        	x = new float[N * MPISize];
+      		y = new float[N * MPISize];
+    
+    		for (int i = 0; i < N * MPISize; ++i) x[i] = 1.f;
+    		for (int i = 0; i < N * MPISize; ++i) y[i] = 2.f;
+  	}	
+
+  	int result;
+	
+	// Allokieren des Geraetespeichers; MPI-Scattering
+
+  	float* d_x;
+	float* d_y;
+
+	// cudaMallocManaged fuer Unified Memory
+
+  	cudaResult = cudaMallocManaged(&d_x, N * sizeof(float));
+	cudaResult = cudaMallocManaged(&d_y, N * sizeof(float));	
+
+  	if (cudaResult != cudaSuccess) {
+
+    		printf("Fehler beim Allokieren von Cuda-Managed-Memory: 
+^		  %s\n", cudaGetErrorString(cudaResult));
+    		MPI_Finalize();
+    		std::exit(EXIT_FAILURE);
+  	}
+
+  	result = MPI_Scatter(x,             // SendBuffer
+                             N,             // SendCount
+                             MPI_FLOAT,     // SendType
+                             d_x,           // ReceiveBuffer
+                             N,             // ReceiveCount
+                             MPI_FLOAT,     // ReceiveType
+                             0,             // Root
+                             MPI_COMM_WORLD // Communicator
+                            );
+
+
+  	if (result != MPI_SUCCESS) {
+    	
+   		printf("Fehler beim MPI-Scattering");
+    		MPI_Finalize();
+    		std::exit(EXIT_FAILURE);
+  	}
+
+
+  	result = MPI_Scatter(y,             // SendBuffer
+                             N,             // SendCount
+                             MPI_FLOAT,     // SendType
+                             d_y,           // ReceiveBuffer
+                             N,             // ReceiveCount
+                             MPI_FLOAT,     // ReceiveType
+                             0,             // Root
+                             MPI_COMM_WORLD // Communicator
+                            );
+
+
+  	if (result != MPI_SUCCESS) {
+    	
+   		printf("Fehler beim MPI-Scattering");
+    		MPI_Finalize();
+    		return EXIT_FAILURE;
+  	}
+
+	// Ermitteln der Blockanzahl	
+
+  	int blocksize = BLOCKSIZE;
+  	int blocknumber = (N + blocksize - 1) / blocksize;
+
+	// Kernel
+
+	float CUDATimePassed; // 
+	cudaEvent_t CUDAStart, CUDAStop; // 
+	
+	TRY(cudaEventCreate(&CUDAStart));
+	TRY(cudaEventCreate(&CUDAStop));
+	TRY(cudaEventRecord(CUDAStart, 0));
+
+	// Kernel
+
+	sum<<<blocknumber, blocksize>>>(N, d_x, d_y);
+
+  	cudaResult = cudaDeviceSynchronize();
+  	if (cudaResult != cudaSuccess) {
+	
+        	printf("Fehler: Cuda asynchron: 
+	  %s\n", cudaGetErrorString(cudaResult));
+    		MPI_Finalize();
+    		return EXIT_FAILURE;
+  	}
+
+	// Zeit-Benchmarking
+
+	TRY(cudaEventRecord(CUDAStop, 0));
+	TRY(cudaEventSynchronize(CUDAStop));
+	TRY(cudaEventElapsedTime(&CUDATimePassed, CUDAStart, CUDAStop));
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	MPIEnd = MPI_Wtime();
+	MPITimePassed = MPIEnd - MPIStart;
+
+	if (MPIRank == 0) {
+
+		printf("\nBenoetigte Zeit Kernel: %3.1f ms \n", CUDATimePassed);
+		printf("Gesamt benoetige Zeit: %f ms \n", MPITimePassed*1000);
+	}
+
+	
+
+Error:
+
+  	cudaFree(d_y);
+  	cudaFree(d_x);
+
+  	if (MPIRank == 0) {
+
+    		delete[] y;
+    		delete[] x;
+  	}
+
+  	MPI_Finalize();
+  	return EXIT_SUCCESS;
+}
+\end{CPP}
 \end{appendix}
 \newpage
 \bibliography{literatur}{}

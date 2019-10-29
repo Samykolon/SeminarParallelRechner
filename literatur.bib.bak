@@ -37,4 +37,42 @@
   note         = {Zuletzt besucht: 26.09.2019},
 }
 
+@Misc{ScriptPC,
+  author       = {Oliver Rheinbach},
+  title        = {{Modul Parallel Computing: MPI - The Message Passing Interface}},
+  howpublished = {{\url{http://www.mathe.tu-freiberg.de/files/personal/253/parallel-computing-2019-slides-3-mpi.pdf}}},
+  note         = {Zuletzt besucht: 29.08.2019},
+}
+
+@Book{MPIBook,
+  title     = {{Using Advanced MPI: Modern Features of the Message-Passing Interface}},
+  publisher = {{The MIT Press}},
+  year      = {2014},
+  author    = {William Gropp and Torsten Hoefler and Rajeev Thakura and Ewing Lusk},
+}
+
+@Misc{UnifiedMemory,
+  author       = {Mark Harris},
+  title        = {{Unified Memory for CUDA Beginners}},
+  howpublished = {{\url{https://devblogs.nvidia.com/unified-memory-cuda-beginners}}},
+  month        = jun,
+  year         = {2017},
+  note         = {Zuletzt besucht: 29.10.2019},
+}
+
+@Misc{GridStride,
+  author       = {Mark Harris},
+  title        = {{CUDA Pro Tip: Write Flexible Kernels with Grid-Stride Loops}},
+  howpublished = {{\url{https://devblogs.nvidia.com/cuda-pro-tip-write-flexible-kernels-grid-stride-loops}}},
+  month        = apr,
+  year         = {2013},
+  note         = {Zuletzt besucht: 28.09.2019},
+}
+
+@Misc{CudaToolkit,
+  title        = {Cuda-Toolkit},
+  howpublished = {{\url{https://developer.nvidia.com/cuda-toolkit}}},
+  note         = {Zuletzt besucht: 28.09.2019},
+}
+
 @Comment{jabref-meta: databaseType:bibtex;}
