@@ -1,0 +1,3 @@
+/home/nvidia/Desktop/Floyd/build/CMakeFiles/rebuild_cache.dir
+/home/nvidia/Desktop/Floyd/build/CMakeFiles/Floyd.dir
+/home/nvidia/Desktop/Floyd/build/CMakeFiles/edit_cache.dir
