@@ -8,6 +8,10 @@
 \usepackage{url}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage[Algorithmus]{algorithm}
+\usepackage{algorithmicx}
+\usepackage[noend]{algpseudocode}
+\usepackage{float}
 
 \definecolor{codegreen}{rgb}{0,0.6,0}
 
@@ -236,7 +240,84 @@ Um das Zusammenspiel von Cuda und MPI besser zu verstehen, wird zunächst ein ei
 \label{tab:addition}
 \end{table}
 \\Betrachet man die Kernel Zeiten, so lässt sich feststellen, dass die insgesamte Laufzeit bei der Verwendung eines Grafikprozessors mit einem Rank am Besten ist und die benötigte Kernel-Zeit bei der Verwendung eines Grafikprozessors mit vier Ranks am Besten ist. Die Zeit, welche die Zuhilfenahme von anderen Grafikprozessoren zur Lösung des Problems benötigt, ist wesentlich höher.
-Dennoch lassen sich in diesem Fall die Vorteile und die Nachteile der gewählten Implementierung erkennen. Das Problem der Vektoraddition ist von seiner Komplexität sehr gering. Somit kann insgesamt weniger Zeit durch die Verwendung von mehreren Grafikprozessoren eingespart werden als durch die Datenübertragungszeit von MPI und durch das automatisierte Speichermanagement von Cuda durch die Verwendung von Unified Memory erzeugt wird. Man sieht das beispielsweise bei Vergleich der Benchmarking-Zeiten von einem Grafikprozessor mit einem MPI-Rank und der von einem Grafikprozessor mit vier MPI-Ranks. Bei der Verwendung von vier Ranks benötigt der Kernel teilweise nur ein Viertel der Zeit (statt $26.3  ms$ nur $7.9  ms$ bei einer Vektorgröße von $5 000 000$). Gleichzeitig ist die gesamte Laufzeit viermal so hoch.
+Dennoch lassen sich in diesem Fall die Vorteile und die Nachteile der gewählten Implementierung erkennen. Das Problem der Vektoraddition ist von seiner Komplexität sehr gering. Somit kann insgesamt weniger Zeit durch die Verwendung von mehreren Grafikprozessoren eingespart werden als durch die Datenübertragungszeit von MPI und durch das automatisierte Speichermanagement von Cuda durch die Verwendung von Unified Memory erzeugt wird. Man sieht das beispielsweise bei Vergleich der Benchmarking-Zeiten von einem Grafikprozessor mit einem MPI-Rank und der von einem Grafikprozessor mit vier MPI-Ranks. Bei der Verwendung von vier Ranks benötigt der Kernel teilweise nur ein Viertel der Zeit (statt $26.3\,ms$ nur $7.9\,ms$ bei einer Vektorgröße von $5 000 000$). Gleichzeitig ist die gesamte Laufzeit viermal so hoch.
+\subsection{Floyd-Warshall-Algorithmus}
+Um den Mini-Cluster ausführlicher zu testen und die Prinzipien der verteilten Berechnung mit MPI und Cuda zu veranschaulichen, wurde der Floyd-Warshall Algorithmus implementiert. Dieser Algorithmus ist Bestandteil der Graphentheorie und wurde nach Robert Floyd und Stephen Warshall benannt. Dabei löst dieser Algorithmus das Problem, in einem Knotennetz mit gegebenen Gewichtungen der Kanten die minimalen Distanzen zwischen den Städten zu finden. Das Prinzip des Floyd-Warshall-Algorithmus ist die dynamische Programmierung. Das heißt, dass alle möglichen Pfade zwischen allen Paaren von Knoten schrittweise verglichen werden und letztendlich nur die besten Werte gespeichert werden \cite{Floyd}.
+\\Mathematisch lässt sich der Algorithmus folgendermaßen ausdrücken \cite{WikiFloyd}: Es sei ein Graph $G$ mit einer Gewichtsmatrix $w$. Dabei ist $w[i,j]$ das Gewicht der Kante von $i$ nach $j$, falls eine solche Kante existiert. Falls es keine Kante von $i$ nach $j$ gibt, so ist $w[i,j]$ unendlich. Mit diesen Angaben lässt sich nun eine Matrix $d$ mit den kürzesten Distanzen bestimmten:
+\newpage
+\begin{algorithm}
+\caption{Floyd-Warshall-Algorithmus}
+\label{alg:floyd}
+\begin{algorithmic}[1]
+\State \textbf{Gegeben}: Graph $G$ mit Gewichtungsmatrix $w$;
+\State $n = |V(G)|$
+\State Für alle $i,j: d[i,j] = w[i,j]$
+\For{$k = 1$ bis $n$}
+\For{jedes Paar $i,j$}
+\State $d[i,j] = min(d[i,j], d[i,k] + d[k,j])$
+\EndFor
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+Der Floyd-Warshall Algorithmus hat eine Komplexität von $O(n^3)$, da die Zahl der Paare $(i,j$ quadratisch beschränkt ist.
+Zunächst wurde eine serielle nicht parallele Version des Algorithmus implementiert und auf einem der Jetson Nanos getestet. Die benötigten Rechenzeiten finden sich in Tabelle \ref{tab:seriell}.
+\begin{table}[]
+\centering
+\begin{tabular}{@{}ccccc@{}}
+\multicolumn{1}{c|}{Anzahl Knoten} & 7     & 8      & 9       & 10       \\ \midrule
+\multicolumn{1}{c|}{Zeit}          & 48 ms & 389 ms & 3252 ms & 24592 ms \\
+\multicolumn{5}{c}{}                                                    
+\end{tabular}
+\caption{Rechenzeit der seriellen Implementierung des Floyd-Warshall-Algorithmus}
+\label{tab:seriell}
+\end{table}
+\\Es wird hier sehr deutlich, dass die Rechenzeit bei einem Graphen mit 7 Knoten noch akzeptabel ist, aber mit jedem weiteren Knoten um ein Vielfaches ansteigt. Mit diesen Zeiten als Vergleich wurde nun eine parallele Version des Floyd-Warshall-Algorithmus implementiert. Der Quellcode dazu befindet sich in dem für diesen Projekt erstelltem Git-Repository. Die benötigten Zeiten und eine grafische Veranschaulichung finden sich in der untenstehenden Tabelle \ref{tab:parallelfloyd} und den nachfolgenden Diagrammen \ref{img:dia1} und \ref{img:dia2}. 
+\\Es wurde im Rahmen des Benchmarks jeweils mit einer Anzahl von 7 bis 12 Knoten getestet; dabei wurden jeweils drei Versuche durchgeführt und für die ermittelten Zeiten der Mittelwert gebildet. Dabei wurde der Algorithmus desweiteren in vier verschiedenen Szenarien getestet. Zunächst wurde selbiger auf einem Nvidia Jetson Nano mit einem MPI-Rank und mit 4 MPI-Ranks ausgeführt. Danach wurde der Algorithmus im Cluster mit drei Jetson Nanos und letztendlich mit einem zusätzlichen Nvidia Jetson TX2 getestet. Die gesamte Prozedur wurde insgesamt einmal mit einer Blockgröße von 16x16 und einmal mit einer Blockgröße von 256x256 durchgeführt. 
+\\Bei der Betrachtung der Ergebnisse fällt als erstes auf, dass die benötigte Rechenzeit sich bei den zwei gewählten Blockgrößen gegensätzlich verhält. Bei einer Blockgröße von 16x16 erzielt das Setup mit vier Geräten und einer Knotenzahl von 12 die besten Zeiten, bei einer Blockgröße von 256x256 das Setup mit einem Gerät und einem Rank. Insgesamt lässt sich durch die Erhöhung der Blockgröße ein wesentlich besseres Ergebnis erzielen. Es fällt außerdem auf, dass bei einer kleinen Problemgröße die Verwendung eines Gerätes und eines Ranks wesentlich bessere Ergebnisse aufzeigt als bei der Nutzung von mehreren Geräten bzw. Ranks. Dies lässt sich auf die durch Verwendung von MPI entstehenden Kommunikationszeiten zurückführen. Desweiteren kommt hier auch die zusätzliche Zeit durch das erweiterte Speichermanagement hinzu.
+\\Zusammenfassend lässt sich feststellen, dass die Verwendung von mehreren Geräten bei steigender Problemgröße auszahlt. Bei einer kleinen Problemgröße werden die durch MPI entstehenden Latenzzeiten zum Nachteil. Es gilt deshalb hier jeweils die Anzahl der Geräte und Ranks je nach Problem und des Größen abzuwägen.
+\newpage
+\begin{table}[]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}ccccc@{}}
+\toprule
+\multicolumn{5}{c}{Blockgröße 16x16}                                                                             \\ \midrule
+\multicolumn{1}{c|}{}                   & 1 GPU - 1 Rank & 1 GPU - 4 Ranks & 3 GPUs - 3 Ranks & 4 GPUs - 4 Ranks \\ \midrule
+\multicolumn{1}{c|}{Zeit für 7 Knoten}  & 54 ms          & 125 ms          & 80 ms            & 114 ms           \\
+\multicolumn{1}{c|}{Zeit für 8 Knoten}  & 93 ms          & 135 ms          & 183 ms           & 241 ms           \\
+\multicolumn{1}{c|}{Zeit für 9 Knoten}  & 448 ms         & 1139 ms         & 436 ms           & 535 ms           \\
+\multicolumn{1}{c|}{Zeit für 10 Knoten} & 2002 ms        & 1362 ms         & 1539 ms          & 1488 ms          \\
+\multicolumn{1}{c|}{Zeit für 11 Knoten} & 11494 ms       & 7988 ms         & 4106 ms          & 4712 ms          \\
+\multicolumn{1}{c|}{Zeit für 12 Knoten} & 89402 ms       & 61916 ms        & 22491 ms         & 17067 ms         \\ \midrule
+\multicolumn{5}{l}{}                                                                                             \\ \midrule
+\multicolumn{5}{c}{Blockgröße 256x256}                                                                           \\ \midrule
+\multicolumn{1}{c|}{}                   & 1 GPU - 1 Rank & 1 GPU - 4 Ranks & 3 GPUs - 3 Ranks & 4 GPUs - 4 Ranks \\ \midrule
+\multicolumn{1}{c|}{Zeit für 7 Knoten}  & 10 ms          & 91 ms           & 73 ms            & 105 ms           \\
+\multicolumn{1}{c|}{Zeit für 8 Knoten}  & 14 ms          & 135 ms          & 150 ms           & 218 ms           \\
+\multicolumn{1}{c|}{Zeit für 9 Knoten}  & 53 ms          & 215 ms          & 464 ms           & 523 ms           \\
+\multicolumn{1}{c|}{Zeit für 10 Knoten} & 113 ms         & 388 ms          & 1201 ms          & 1343 ms          \\
+\multicolumn{1}{c|}{Zeit für 11 Knoten} & 280 ms         & 722 ms          & 3555 ms          & 4366 ms          \\
+\multicolumn{1}{c|}{Zeit für 12 Knoten} & 839 ms         & 1620 ms         & 11794 ms         & 14390 ms         \\ \midrule
+\multicolumn{5}{l}{}                                                                                            
+\end{tabular}%
+}
+\caption{Benötigte Rechenzeit für die parallele Implementierung des Floyd-Warshall Algorithmus. Die angegebenen Zeiten bilden dabei einen Mittelwert aus je drei aufgezeichneten Zeitwerten. Bei dem Test auf einer GPU wurde ein Nvidia Jetson Nano verwendet, bei der Verwendung von 3 GPUs wurden jeweils 3 Jetson Nanos benutzt. Für den letzten Benchmark mit 4 GPUs wurde zusätzlich noch ein Nvidia Jetson TX2 verwendet. Der Benchmark erfolgte einmal mit einer Blockgröße von 16x16 und 256x256.}
+\label{tab:parallelfloyd}
+\end{table}
+\begin{figure}[H]
+	\centering
+	\captionsetup{justification=centering} 
+	\includegraphics[width=1.0\textwidth]{images/Diagramm2.png}
+	\caption{Grafische Darstellung der Rechenzeit der parallelen Implementierung des Floyd-Warshall-Algorithmus bei einer Blockgröße von 16x16}
+	\label{img:dia1}
+\end{figure}
+\begin{figure}[H]
+	\centering
+	\captionsetup{justification=centering} 
+	\includegraphics[width=1.0\textwidth]{images/Diagramm1.png}
+	\caption{Grafische Darstellung der Rechenzeit der parallelen Implementierung des Floyd-Warshall-Algorithmus bei einer Blockgröße von 256x256}
+	\label{img:dia2}
+\end{figure}
 \section{Fazit}
 \newpage
 \addcontentsline{toc}{section}{\protect\numberline{}{Anhang}} 

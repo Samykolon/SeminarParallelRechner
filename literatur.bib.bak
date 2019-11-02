@@ -70,9 +70,16 @@
 }
 
 @Misc{CudaToolkit,
-  title        = {Cuda-Toolkit},
+  title        = {{Cuda-Toolkit}},
   howpublished = {{\url{https://developer.nvidia.com/cuda-toolkit}}},
   note         = {Zuletzt besucht: 28.09.2019},
+}
+
+@Misc{Floyd,
+  author       = {{Aleksejs Voroncovs}},
+  title        = {{Der Floyd-Warshall Algorithmus}},
+  howpublished = {{\url{https://www-m9.ma.tum.de/graph-algorithms/spp-floyd-warshall/index_de.html}}},
+  note         = {Zuletzt besucht: 01.11.2019},
 }
 
 @Comment{jabref-meta: databaseType:bibtex;}
