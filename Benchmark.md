@@ -1,51 +1,87 @@
-TSP-Algorithmus
+Floyd-Marshall
 
-Cuda-Only:
+Seriell
 
-8 Städte
-7 Threads, 720 Kombinationen, 61.3 ms
+7: 48 ms
+8: 389 ms
+9: 3252 ms
+10: 24592 ms
 
-9 Städte
-8 Threads, 40320 Kombinationen, 118.7 ms
+Blockgröße 16x16
 
-10 Städte
-72 Threads, 362880 Kombinationen, 359.5 ms
+1 GPU - 1 Rank 
 
-11 Städte
-720 Threads, 3628800 Kombinationen, 444.6 ms
+7: 54 ms
+8: 93 ms
+9: 448 ms
+10: 2002 ms
+11: 11494 ms
+12: 89402 ms
 
-12 Städte
-990 Threads * 8 Blöcke, 39916800 Kombinationen, 1628.1 ms
+1 GPU - 4 Ranks
 
-13 Städte
-495 Threads * 24 Blöcke * 8 Kernel, 479001600 Kombinationen, 18340 ms
+7: 125 ms
+8: 135 ms
+9: 1139 ms
+10: 1362 ms
+11: 7988 ms
+12: 61916 ms
 
-14 Städte
-715 Threads * 27 Blöcke * 64 Kernel, 6227020800 Kombinationen, 276130.4 ms
+3 GPUs - 3 Ranks
 
-Cuda-Only - Powermodus
+7: 80 ms
+8: 183 ms
+9: 436 ms
+10: 1539 ms
+11: 4106 ms
+12: 22491 ms
 
-8 Städte
-7 Threads, 720 Kombinationen, 11.3 ms
+4 GPUs - 4 Ranks
 
-9 Städte
-8 Threads, 40320 Kombinationen, 40.1 ms
+7: 114 ms
+8: 241 ms
+9: 535 ms
+10: 1488 ms
+11: 4712 ms
+12: 17067 ms
 
-10 Städte
-72 Threads, 362880 Kombinationen, 51.9 ms
+Blockgröße 256x256
 
-11 Städte
-720 Threads, 3628800 Kombinationen, 131.2 ms
+1 GPU - 1 Rank - Blockgröße 16x16
 
-12 Städte
-990 Threads * 8 Blöcke, 39916800 Kombinationen, 1442 ms
+7: 10 ms
+8: 14 ms
+9: 53 ms
+10: 113 ms
+11: 280 ms
+12: 839 ms
 
-13 Städte
-495 Threads * 24 Blöcke * 8 Kernel, 479001600 Kombinationen, 17740.5 ms
+1 GPU - 4 Ranks
 
-14 Städte
-715 Threads * 27 Blöcke * 64 Kernel, 6227020800 Kombinationen, 256130.4 ms
+7: 91 ms
+8: 135 ms
+9: 215 ms
+10: 388 ms
+11: 722 ms
+12: 1620 ms
 
+3 GPUs - 3 Ranks
+
+7: 73 ms
+8: 150 ms
+9: 464 ms
+10: 1201 ms
+11: 3555 ms
+12: 11794 ms
+
+4 GPUs - 4 Ranks
+
+7: 105 ms
+8: 218 ms
+9: 523 ms
+10: 1343 ms
+11: 4366 ms
+12: 14390 ms
 
 Vector-Add - Unified Shared Memory
 
