@@ -1,3 +1,0 @@
-/home/nvidia/Desktop/NN/build/CMakeFiles/rebuild_cache.dir
-/home/nvidia/Desktop/NN/build/CMakeFiles/NN.dir
-/home/nvidia/Desktop/NN/build/CMakeFiles/edit_cache.dir

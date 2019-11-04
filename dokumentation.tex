@@ -45,10 +45,14 @@
 \TUBAFErklaerungsseite
 \newpage
 \section{Einleitung}
+Egal ob in Forschung, Industrie oder Dienstleistung - alle Bereiche verwenden mehr und mehr komplexe Algorithmen, um Abläufe und Dienste zu planen, zu koordinieren oder durchzuführen. Mit der steigenden Rechenleistung in den vergangenen Jahrzehnten können diese auch auf schon einfachen Geräten ausgeführt werden. Jedoch gibt es nach wie vor eine Vielzahl von Algorithmen, die bei steigender Größe des behandelten Problems viel Rechenzeit bzw. -leistung benötigen. Um diese Algorithmen effizienter zu gestalten, werden diese meist auf einem Rechnerverbund bzw. Cluster ausgeführt. Klassisch bestehen diese sogenannten \textit{High Performance Computing Cluster} aus mehreren Knoten mit jeweils eigenen Prozessoren. Dabei wird die zu bearbeitende Aufgabe (Job) letztendlich auf die Knoten aufgeteilt; die Berechnung erfolgt auf den dazugehörigen CPUs. Sind die zu erledigenden Aufgaben ziemlich groß bei verhältnismäßig einfachen Recheninstruktionen, so kann die Compute-Zeit je nach Setup trotzdem relativ hoch sein. Dies hängt damit zusammen, dass eine moderne CPU zwar auch komplexere Instruktionen schnell bearbeiten kann, jedoch nach wie vor unter 100 Kerne besitzt.
+\\\\Im Gegensatz zu herkömmlichen Prozessoren stehen hier Grafikprozessoren, die im Hinblick auf ihre Architektur wesentlich anders aufgebaut sind. Moderne GPUs besitzen oft mehrere tausend Kerne, wenn auch nur mit einem jeweils einfachen Set an möglichen Instruktionen. Diese Eigenschaft lässt sich ausnutzen, um bestimmte Probleme in einem Bruchteil der auf einer CPU benötigten Rechenzeit zu bewältigen. Wie CPUs lassen sich auch mehrere GPUs miteinander verbinden, um eine weitere Beschleunigung zu erzielen. Dabei sind jedoch sowohl beim technischen Setup als auch bei der Implementierung eines Algorithmus zur Ausführung auf mehreren Grafikchips gewisse Dinge zu beachten.
+\\\\In dieser Arbeit soll auf die Grundlagen des verteilten Computings mit mehreren GPUs eingegangen und eine Art Handbuch für den Aufbau eines Prototyps mit mehreren NVIDIA-Grafikchips gegeben werden. Dabei werden zunächst in Kapitel 2 die benötigten Schnittstellen MPI und CUDA erläutert. In Kapitel 3 findet sich dann eine schrittweise Anleitung für den technischen Aufbau und die Konfiguration des Prototyps. Anschließend wird in Kapitel 4 auf das Benchmarking des Prototyps eingegangen und in Kapitel 5 ein Fazit gegeben.
+\newpage
 \section{Grundlagen}
 \subsection{Message-Passing-Interface (MPI)}
-Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle für die Kommunikation auf verteilten Systemen. Es wird häufig wissenschaftlichen und ingenieurstechnischen Domänen verwendet, um größere Problemstellungen effizienter zu bearbeiten und zu lösen \cite{MPIBook}. MPI ist speziell für die Verwendung auf verteilten Systemen mit ebenso verteiltem Speicher konstruiert. Dabei kann jeder Prozessor, der Teil der Bearbeitung eines Workloads ist, nur auf seinen lokalen Speicher zugreifen. Es können jedoch durch Messages Daten von einem lokalen Speicher in den anderen übertragen werden.
-\\MPI ist als Bibliothek implementiert, nicht als Programmiersprache. Dabei existieren Implementierungen für zahlreiche Programmiersprache wie C, C++, Python oder Fortran \cite{ScriptPC}.
+Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle für die Kommunikation auf verteilten Systemen. Es wird häufig in wissenschaftlichen und ingenieurstechnischen Domänen verwendet, um größere Problemstellungen effizienter zu bearbeiten und zu lösen \cite{MPIBook}. MPI ist speziell für die Verwendung auf verteilten Systemen mit ebenso verteiltem Speicher konstruiert. Dabei kann jeder Prozessor, der Teil der Bearbeitung eines Workloads ist, nur auf seinen lokalen Speicher zugreifen. Es können jedoch durch Messages Daten von einem lokalen Speicher in den anderen übertragen werden.
+\\MPI ist als Bibliothek implementiert, nicht als Programmiersprache. Dabei existieren Implementierungen für zahlreiche Programmiersprachen wie C, C++, Python oder Fortran \cite{ScriptPC}.
 \\Die grundlegendste Art der Kommunikation findet zwischen zwei Prozessen statt. Dabei übermittelt ein Sendeprozess Informationen an einen Empfangsprozess.
 \begin{figure}
 	\centering
@@ -57,18 +61,18 @@ Das Message-Passing-Interface, kurz MPI, ist eine standartisierte Schnittstelle 
 	\caption{Grundlegendes Konzept von MPI: Ein Sendeprozess sendet Daten an einen Empfangsprozess über ein Netzwerk. Jeder Prozess kann nur unmittelbar auf seinen zugehörigen lokalen Speicher zugreifen.}
 	\label{img:mpimodell}
 \end{figure}
-Prozesse lassen sich außerdem in Gruppen zusammenfassen, wobei jeder Prozess eine eindeutige Nummer (Rang bzw. Rank) zugeorndet wird. Der Zugriff auf diese Gruppe wird über einen Kommunikator gesteuert. Innerhalb dieser Gruppe können mithilfe einer Boradcast-Operation von einem Masterprozess allen anderen Prozessen Nachrichten gesendet werden. Diese zurückgegebenen Daten werden mithilfe einer Gather-Funktion wieder eingesammelt.
-\\Dieses Konzept wird auch für den im Rahmen dieser Arbeit erstellten Minicluster genutzt: Der Workload wird von dem Masterknoten definiert und dann über das Message-Passing-Interface and die Work-Nodes (Arbeitsknoten) gesendet. Dies erlaubt dann letztendlich die Verteilung der Workload innerhalb des Clusters.
+Prozesse lassen sich außerdem in Gruppen zusammenfassen, wobei jeder Prozess eine eindeutige Nummer (Rang bzw. Rank) zugeordnet wird. Der Zugriff auf diese Gruppe wird über einen Kommunikator gesteuert. Innerhalb dieser Gruppe können mithilfe einer Broadcast-Operation von einem Masterprozess allen anderen Prozessen Nachrichten gesendet werden. Die zurückgegebenen Daten werden mithilfe einer Gather-Funktion wieder eingesammelt.
+\\Dieses Konzept wird auch für den im Rahmen dieser Arbeit erstellten Minicluster genutzt: Der Workload wird von dem Masterknoten definiert und dann über das Message-Passing-Interface an die Work-Nodes (Arbeitsknoten) gesendet. Dies erlaubt dann letztendlich die Verteilung der Workload innerhalb des Clusters.
 \subsection{CUDA}
 Im Vergleich zu einer CPU besteht eine Grafikkarte aus einer großen Anzahl parallel nutzbarer Kerne, die eine Vielzahl von Berechnungen parallel ausführen können. Beispielsweise besitzt eine \textit{NVIDIA RTX 2080} 2944 CUDA-Kerne, während die meisten CPUs 8 bis 16 Kerne besitzen \cite{RTXCores}. 
-Natürlich sind die Kerne ein GPU in ihrer Struktur und Instruktionskomplexität wesentlich einfacher, da sie dafür ausgelegt sind, Aufgaben als Gruppe zu bearbeiten.
+Natürlich sind die Kerne einer GPU in ihrer Struktur und Instruktionskomplexität wesentlich einfacher, da sie dafür ausgelegt sind, Aufgaben als Gruppe zu bearbeiten.
 Eine CPU ist auf generelle Programmanforderungen ausgelegt und muss eine Vielzahl von Befehlen und Datentypen unterstützen. Eine GPU ist hingegen auf Grafikberechnungen spezialisiert und in ihrer grundlegenden Funktion für Pixelberechnungen konzipiert worden.
 \\Aufgrund dieser Struktur lassen sich GPUs aber nicht nur für Grafikberechnungen nutzen, sondern auch bei der Berechnung von wissenschaftlichen Problemen.
 Um diese Architektur nutzen und steuern zu können, wurde die Programmierschnittstelle CUDA (\textit{Compute Unified Device Architecture}) entwickelt. CUDA wurde dabei von NVIDIA entwickelt und erlaubt die Beschleunigung von Programmen, indem neben der CPU bestimmte Programmteile von einer oder mehreren GPUs parallelisiert bearbeitet werden.
 \\CUDA besitzt Bindings für viele wissenschaftlich genutzte Programmiersprachen wie C/C++, Fortran oder Python und ist mit allen herkömmlichen Betriebssystemen kompatibel \cite{CUDADefinition}.
 \subsection{CUDA und MPI}
-Sowohl CUDA als auch MPI dienen in ihrer grundlegenden Funktion zur Bereitstellung einer Schnittstelle von parallelen bzw. verteilten Berechnungen. MPI erlaubt es wie schon oben erwähnt, bestimmte Aufgaben innerhalb eines verteilten Systems zu koordinieren und aufzuteilen. Grundsätzlich wird dabei nur die Rechenleistung der einzelnen Prozessoren genutzt \cite{CUDAAwareMPI}.
-Für eine weitere Optimierung durch Verwendung von verschiedenen GPUs in einem verteilten System ist zusätzlich CUDA als GPU-Schnittstelle notwendig.
+Sowohl CUDA als auch MPI dienen in ihrer grundlegenden Funktion zur Bereitstellung einer Schnittstelle von parallelen bzw. verteilten Berechnungen. MPI erlaubt es wie schon oben erwähnt, bestimmte Aufgaben innerhalb eines verteilten Systems zu koordinieren und aufzuteilen. Grundsätzlich wird dabei nur die Rechenleistung der einzelnen CPUs genutzt \cite{CUDAAwareMPI}.
+Für eine weitere Optimierung durch die Verwendung von verschiedenen GPUs in einem verteilten System ist zusätzlich CUDA als GPU-Schnittstelle notwendig.
 Dabei ergibt sich jedoch folgendes Problem: Standartmäßig werden bei der Verwendung von MPI nur Zeiger auf den Hauptspeicher des Hosts weitergeleitet. Jedoch müssen bei der Kombination von MPI und CUDA meist GPU-Buffer gesendet werden. Hierzu müssen diese Buffer zunächst in den Hauptspeicher kopiert werden, um dann gesendet werden zu können:
 \begin{CPP}
 //MPI rank 0
@@ -87,7 +91,7 @@ MPI_Send(s_buf_d,size,MPI_CHAR,1,100,MPI_COMM_WORLD);
 //MPI rank n-1
 MPI_Recv(r_buf_d,size,MPI_CHAR,0,100,MPI_COMM_WORLD, &status);
 \end{CPP}
-Dabei muss eine CUDA-aware MPI-Implementation unterscheiden, ob der jeweilige Buffer auf dem Hostspeicher oder dem Speicher der GPU liegt. Seit der CUDA-Version 4.0 wurde das CUDA-Feature UVA (\textit{Unified Virtual Addressing}) eingeführt, welches den Hauptspeicher und den Gerätespeicher kombiniert und einem virtuellen Adressraum zusammenfasst.
+Dabei muss eine CUDA-aware MPI-Implementation unterscheiden, ob der jeweilige Buffer auf dem Hostspeicher oder dem Speicher der GPU liegt. Seit der CUDA-Version 4.0 wurde das CUDA-Feature UVA (\textit{Unified Virtual Addressing}) eingeführt, welches den Hauptspeicher und den Gerätespeicher kombiniert und in einem virtuellen Adressraum zusammenfasst.
 \begin{figure}
 	\centering
 	\captionsetup{justification=centering} 
@@ -96,10 +100,9 @@ Dabei muss eine CUDA-aware MPI-Implementation unterscheiden, ob der jeweilige Bu
 	\label{img:cudauval}
 \end{figure}
 Ein weiteres Feature von CUDA, eingeführt mit der Version 5.0, ist die \textit{GPUDirect}-Funktionalität. Dies erlaubt mithilfe des \textit{Remote Direct Memory Access} (RDMA) das direkte Senden von Grafikspeicher an den Netzwerkadapter ohne Routing über den jeweiligen Hauptspeicher. 
-%Bild
 Diese Funktionen bilden die Grundlage für eine gelungene Optimierung von verteilten Berechnungen auf verteilten Systemen durch Nutzung von CUDA-aware MPI.
 \section{Technischer Aufbau und Konfiguration}
-Für den Aufbau des Mini-Clusters werden zunächst folgende Dinge benötigt:
+Für den Aufbau des Mini-Clusters werden zunächst folgende Dinge benötigt \cite{ClusterSetup}:
 \begin{itemize}
 	\item Nvidia Jetson Nano (3x)
 	\item SD-Karte (3x)
@@ -107,8 +110,8 @@ Für den Aufbau des Mini-Clusters werden zunächst folgende Dinge benötigt:
 	\item 4-Port Ethernet Switch
 	\item Optional: 40mm Lüfter (3x, in diesem Fall wurde der Noctua NF-A4x20 verwendet)
 \end{itemize}
-Der technische Aufbau beginnt mit der physischen Verbindung der Nvidia Jetson Nanos. Dazu werden diese alle via Ethernet-Kabel mit einem Ethernet Switch verbunden, welcher wiederum durch LAN mit einem Router und dadurch mit dem Internet verbunden ist. An sich benötigt der Cluster keinen Internetzugang, für die Einrichtung ist dieser jedoch unersetzlich. Einer der Jetson Nanos fungiert als Head-Node (Masterknoten), die anderen zwei als Worker-Nodes.
-\\Ist das physische Setup abgeschlossen, wird als nächstes auf jedem der Jetson Nanos das Jetson Nano Developer Kit SD Card Image installiert. Dies geschieht durch das Schreiben des Images auf die jeweilige SD-Karte und einem anschließenden Setup auf den Jetson Nanos \cite{SDImage}. Danach wird das System durch Aktualisierung der Pakete auf den neuesten Stand gebracht:
+Der technische Aufbau beginnt mit der physischen Verbindung der Nvidia Jetson Nanos. Dazu werden diese alle via Ethernet-Kabel mit einem Ethernet-Switch verbunden, welcher wiederum durch Ethernet mit einem Router und dadurch mit dem Internet verbunden ist. An sich benötigt der Cluster keinen Internetzugang, für die Einrichtung ist dieser jedoch unersetzlich. Einer der Jetson Nanos dient dabei als Head-Node (Masterknoten), die anderen zwei als Worker-Nodes.
+\\Ist das physische Setup abgeschlossen, wird als nächstes auf jedem der Jetson Nanos das \textit{Jetson Nano Developer Kit SD Card Image} installiert. Dies geschieht durch das Schreiben des Images auf die jeweilige SD-Karte und einem anschließenden Setup auf den Jetson Nanos \cite{SDImage}. Danach wird das System durch Aktualisierung der Pakete auf den neuesten Stand gebracht:
 \begin{lstlisting}
 sudo apt-get update
 sudo apt-get upgrade
@@ -127,7 +130,7 @@ Auf den Worker-Nodes wird dagegen das \texttt{nfs-common}-Paket installiert:
 sudo apt-get install nfs-common
 \end{lstlisting}
 NFS und die damit verbundenen Pakete sind notwendig, um später Dateien innerhalb des Clusters auszutauschen.
-\\Um dieses Netzwerk einzurichten, muss zunächst jedem der drei Knoten eine statische IP zugewiesen werden. Dies erfolgt entweder über die Netzwerkeinstellungen oder über das Bearbeiten der Interface-Datei:
+\\Um den Cluster nun einzurichten, muss zunächst jedem der drei Knoten eine statische IP zugewiesen werden. Dies erfolgt entweder über die Netzwerkeinstellungen oder über das Bearbeiten der Interface-Datei:
 \begin{lstlisting}
 cd /etc/network
 sudo nano interfaces
@@ -155,7 +158,7 @@ Die \texttt{hosts}-Datei sollte dann so aussehen:
 192.168.178.11 slave1
 192.168.178.12 slave2
 \end{lstlisting}
-Nach dem Einrichten der statischen IP-Adressen folgt nun das Setup von SSH. Dazu wird zunächst ein 2048 bit RSA Schlüsselpaar auf dem Masterknoten erstellt:
+Nach dem Einrichten der statischen IP-Adressen folgt nun das Setup von SSH. Dazu wird zunächst ein 2048-bit RSA Schlüsselpaar auf dem Masterknoten erstellt:
 \begin{lstlisting}
 ssh-keygen -t rsa -b 2048
 \end{lstlisting}
@@ -211,7 +214,7 @@ sudo nano /etc/fstab
 
 master:/cloud /cloud nfs rsize=8192,wsize=8192,timeo=14,intr
 \end{lstlisting}
-Manuell lässt sich ein gemeinsamer Arbeitsordner auch manuell mounten:
+Alternativ lässt sich ein gemeinsamer Arbeitsordner auch manuell mounten:
 \begin{lstlisting}
 sudo mount master:/cloud /cloud
 \end{lstlisting}
@@ -220,9 +223,9 @@ Je nach verwendetem Linuxbetriebssystem muss nun noch sichergestellt werden, das
 \section{Benchmarking und Test ausgewählter Algorithmen}
 In diesem Kapitel soll die Implementierung ausgewählter Algorithmen vorgestellt und mit verschiedenen Setups getestet und ausgewertet werden.
 \subsection{Einfache Vektoraddition}
-Um das Zusammenspiel von Cuda und MPI besser zu verstehen, wird zunächst ein einfacher Algorithmus zur Vektorenaddition betrachtet. Der Quellcode findet sich dabei in Anhang B. Im wesentlichen geschieht bei der implementierten Vektoraddition mithilfe von Cuda und MPI folgendes: Zunächst wird MPI standartmäßig initialisiert. Dann wird überprüft, ob die angegeben MPI-Hosts cudafähige Geräte besitzen und wenn ja, wie viele. Nach der Allokieren des Speichers auf dem Host und dem Initalisieren der beiden Vektoren wird der Speicher für die verteilte Berechnung allokiert. Dies geschieht in diesem Fall nicht durch eine einfache Allokierung mit \texttt{cudaMalloc}, sondern durch \texttt{cudaMallocManaged}. Dies bewirkt die Verwendung von dem sogenannten \textit{Unified Memory} \cite{UnifiedMemory}. Unified Memory stellt einen einzelnen Speicheradressraum für alle Prozessoren in einem System bereit. Der Zugriff der einzelnen Prozessoren (in diesem Fall die einzelnen Grafikprozessoren) auf den Speicher wird durch Cuda selbst gehandhabt.
+Um das Zusammenspiel von Cuda und MPI besser zu verstehen, wird zunächst ein einfacher Algorithmus zur Vektoraddition betrachtet. Der Quellcode findet sich dabei in Anhang B. Im wesentlichen geschieht bei der implementierten Vektoraddition mithilfe von Cuda und MPI folgendes: Zunächst wird MPI standartmäßig initialisiert. Dann wird überprüft, ob die angegeben MPI-Hosts cudafähige Geräte besitzen und wenn ja, wie viele. Nach der Allokieren des Speichers auf dem Host und dem Initalisieren der beiden Vektoren wird der Speicher für die verteilte Berechnung allokiert. Dies geschieht in diesem Fall nicht durch eine einfache Allokierung mit \texttt{cudaMalloc}, sondern durch \texttt{cudaMallocManaged}. Dies bewirkt die Verwendung von dem sogenannten \textit{Unified Memory} \cite{UnifiedMemory}. Unified Memory stellt einen einzelnen Speicheradressraum für alle Prozessoren in einem System bereit. Der Zugriff der einzelnen Prozessoren (in diesem Fall die einzelnen Grafikprozessoren) auf den Speicher wird durch Cuda selbst gehandhabt.
 \\Nach der Allokierung des Speichers erfolgt die Aufteilung der Vektoraddition auf die einzelnen Grafikprozessoren durch die Scatterfunktionalität von MPI. Anschließend folgt der Aufruf des Kernels. Die Aufteilung auf den einzelnen Prozessoren an sich erfolgt in diesem Fall durch eine sogenannte Grid-Stride-Loop (siehe \cite{GridStride}).
-\\\\Für das Benchmarking dieses Algorithmus ist nun zunächst die Zeit interessant, welche der Kernel benötigt und welche das Programm an sich insgesamt benötigt. Eine Zusammenfassung von generierten Ergebnissen ist in der nachfolgenden Tabelle \ref{tab:addition} ersichtlich.
+\\\\Für das Benchmarking dieses Algorithmus ist nun die Zeit interessant, welche der Kernel benötigt und welche das Programm an sich insgesamt benötigt. Eine Zusammenfassung von generierten Ergebnissen ist in der nachfolgenden Tabelle \ref{tab:addition} ersichtlich.
 \begin{table}[]
 \centering
 \resizebox{\textwidth}{!}{%
@@ -271,9 +274,9 @@ Zunächst wurde eine serielle nicht parallele Version des Algorithmus implementi
 \caption{Rechenzeit der seriellen Implementierung des Floyd-Warshall-Algorithmus}
 \label{tab:seriell}
 \end{table}
-\\Es wird hier sehr deutlich, dass die Rechenzeit bei einem Graphen mit 7 Knoten noch akzeptabel ist, aber mit jedem weiteren Knoten um ein Vielfaches ansteigt. Mit diesen Zeiten als Vergleich wurde nun eine parallele Version des Floyd-Warshall-Algorithmus implementiert. Der Quellcode dazu befindet sich in dem für diesen Projekt erstelltem Git-Repository. Die benötigten Zeiten und eine grafische Veranschaulichung finden sich in der untenstehenden Tabelle \ref{tab:parallelfloyd} und den nachfolgenden Diagrammen \ref{img:dia1} und \ref{img:dia2}. 
-\\Es wurde im Rahmen des Benchmarks jeweils mit einer Anzahl von 7 bis 12 Knoten getestet; dabei wurden jeweils drei Versuche durchgeführt und für die ermittelten Zeiten der Mittelwert gebildet. Dabei wurde der Algorithmus desweiteren in vier verschiedenen Szenarien getestet. Zunächst wurde selbiger auf einem Nvidia Jetson Nano mit einem MPI-Rank und mit 4 MPI-Ranks ausgeführt. Danach wurde der Algorithmus im Cluster mit drei Jetson Nanos und letztendlich mit einem zusätzlichen Nvidia Jetson TX2 getestet. Die gesamte Prozedur wurde insgesamt einmal mit einer Blockgröße von 16x16 und einmal mit einer Blockgröße von 256x256 durchgeführt. 
-\\Bei der Betrachtung der Ergebnisse fällt als erstes auf, dass die benötigte Rechenzeit sich bei den zwei gewählten Blockgrößen gegensätzlich verhält. Bei einer Blockgröße von 16x16 erzielt das Setup mit vier Geräten und einer Knotenzahl von 12 die besten Zeiten, bei einer Blockgröße von 256x256 das Setup mit einem Gerät und einem Rank. Insgesamt lässt sich durch die Erhöhung der Blockgröße ein wesentlich besseres Ergebnis erzielen. Es fällt außerdem auf, dass bei einer kleinen Problemgröße die Verwendung eines Gerätes und eines Ranks wesentlich bessere Ergebnisse aufzeigt als bei der Nutzung von mehreren Geräten bzw. Ranks. Dies lässt sich auf die durch Verwendung von MPI entstehenden Kommunikationszeiten zurückführen. Desweiteren kommt hier auch die zusätzliche Zeit durch das erweiterte Speichermanagement hinzu.
+\\Es wird hier sehr deutlich, dass die Rechenzeit bei einem Graphen mit 7 Knoten noch akzeptabel ist, aber mit jedem weiteren Knoten um ein Vielfaches ansteigt. Mit diesen Zeiten als Vergleich wurde nun eine parallele Version des Floyd-Warshall-Algorithmus implementiert. Der Quellcode dazu befindet sich in dem für diesen Projekt erstelltem Git-Repository \cite{Git}. Die benötigten Zeiten und eine grafische Veranschaulichung finden sich in der untenstehenden Tabelle \ref{tab:parallelfloyd} und den nachfolgenden Diagrammen \ref{img:dia1} und \ref{img:dia2}. 
+\\Es wurde im Rahmen des Benchmarks jeweils mit einer Knotenanzahl von 7 bis 12 Knoten getestet; dabei wurden jeweils drei Versuche durchgeführt und für die ermittelten Zeiten der Mittelwert gebildet. Desweiteren wurde der Algorithmus in vier verschiedenen Szenarien getestet. Zunächst wurde selbiger auf einem Nvidia Jetson Nano mit einem MPI-Rank und mit 4 MPI-Ranks ausgeführt. Danach wurde der Algorithmus im Cluster mit drei Jetson Nanos und letztendlich mit einem zusätzlichen Nvidia Jetson TX2 getestet. Die gesamte Prozedur wurde insgesamt einmal mit einer Blockgröße von 16x16 und einmal mit einer Blockgröße von 256x256 durchgeführt. 
+\\Bei der Betrachtung der Ergebnisse fällt als erstes auf, dass die benötigte Rechenzeit sich bei den zwei gewählten Blockgrößen gegensätzlich verhält. Bei einer Blockgröße von 16x16 erzielt das Setup mit vier Geräten und einer Knotenzahl von 12 die besten Zeiten, bei einer Blockgröße von 256x256 das Setup mit einem Gerät und einem Rank. Insgesamt lässt sich durch die Erhöhung der Blockgröße ein wesentlich besseres Ergebnis erzielen. Es fällt außerdem auf, dass bei einer kleinen Problemgröße die Verwendung eines Gerätes und eines Ranks wesentlich bessere Ergebnisse aufzeigt als bei der Nutzung von mehreren Geräten bzw. Ranks. Dies lässt sich auf die durch Verwendung von MPI entstehenden Kommunikationszeiten zurückführen. Desweiteren kommt hier auch die zusätzliche Zeit durch das erweiterte Speichermanagement hinzu. Steigt die Problemgröße dagegen, so benötigt die Ausführung im Mini-Cluster mit vier Geräten, einer Knotenanzahl von 12 und einer Blockgröße von 16x16 nur ein Viertel der Zeit, die bei einer Ausführung auf einem Gerät mit einem Rank benötigt wird.
 \\Zusammenfassend lässt sich feststellen, dass die Verwendung von mehreren Geräten bei steigender Problemgröße auszahlt. Bei einer kleinen Problemgröße werden die durch MPI entstehenden Latenzzeiten zum Nachteil. Es gilt deshalb hier jeweils die Anzahl der Geräte und Ranks je nach Problem und des Größen abzuwägen.
 \newpage
 \begin{table}[]
@@ -318,7 +321,8 @@ Zunächst wurde eine serielle nicht parallele Version des Algorithmus implementi
 	\caption{Grafische Darstellung der Rechenzeit der parallelen Implementierung des Floyd-Warshall-Algorithmus bei einer Blockgröße von 256x256}
 	\label{img:dia2}
 \end{figure}
-\section{Fazit}
+\section{Zusammenfassung}
+Wie die Ergebnisse des Benchmarks zeigen, ist je nach Größe und Art des Problems eine erhebliche Verringerung der benötigten Rechenzeit bei der Verwendung von mehreren Grafikchips zu erkennen. In Einzelfällen konnte die Rechenzeit dabei um ein Vielfaches reduziert werden. Nach wie vor ist es wichtig darauf hinzuweisen, dass die Verwendung von einem bzw. mehreren Grafikchips zur Berechnung eines Problems nicht immer von Vorteil ist. Dies ist grade im Hinblick auf die für die Kommunikation benötigte Zeit von Fall zu Fall abzuwägen. Die im Rahmen dieser Arbeit implementierten Algorithmen können auch von herkömmlichen Prozessoren schnell bearbeitet werden. Es ist anzunehmen, dass die Nutzung eines GPU-Clusters grade im Bereich des maschinellen Lernens erhebliche Vorteile bieten kann. 
 \newpage
 \addcontentsline{toc}{section}{\protect\numberline{}{Anhang}} 
 \begin{appendix} 

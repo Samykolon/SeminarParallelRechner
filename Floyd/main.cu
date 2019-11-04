@@ -13,9 +13,11 @@
 #define BLOCKSIZE 256
 #define CELLS_PER_THREAD 16
 
+// Fehler-Handling
+
 #define TRY(command) { gpuAssert((command), __FILE__, __LINE__); }
 
-// Print Array
+// Print Array, nur für Debugging
 
 void print(float* array, int n, int nn) {
 
@@ -78,6 +80,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    	}
 }
 
+// Kernel-Funktion 2
+
 __global__ void shortestPath2(float* array1, float* array2, float* receive ,int n ,int rows, int k, int rank, int owner) {
 											
 	int column = blockIdx.x * blockDim.x + threadIdx.x;
@@ -95,7 +99,7 @@ __global__ void shortestPath2(float* array1, float* array2, float* receive ,int 
 
 }
 
-
+// Kernel-Funktion 1
 
 __global__ void shortestPath1(float* array1, float* array2, int n, int rows, int rank) {     
 
@@ -125,6 +129,8 @@ __global__ void shortestPath1(float* array1, float* array2, int n, int rows, int
 	}
 }
 
+// Hauptfunktion für den parallelen Algorithmus
+
 float* shortest(float* array, int n, int numberoftasks, int rank) {
       
 	cudaSetDevice(rank);
@@ -134,7 +140,9 @@ float* shortest(float* array, int n, int numberoftasks, int rank) {
 		int numberofdevices;
 
     		cudaGetDeviceCount(&numberofdevices);
-
+		
+		// Auslesen der Geräteinformationen
+		
 		for (int i = 0; i < numberofdevices; i++) {
       			cudaDeviceProp prop;
       			cudaGetDeviceProperties(&prop, i);
@@ -147,34 +155,34 @@ float* shortest(float* array, int n, int numberoftasks, int rank) {
  	} 
      
     
-    	float *d_array, *d_array2, *d_array3 ,*d_receive;
-    	int N = (n * n / numberoftasks), i;
+    float *d_array, *d_array2, *d_array3 ,*d_receive;
+    int N = (n * n / numberoftasks), i;
 
-    	int arraysize = N * sizeof(float), k;
+    int arraysize = N * sizeof(float), k;
 	int receivesize = n*sizeof(float);
     
 	struct timeval start, end;
     
-    	float *receive = (float*)malloc(n * sizeof(float));
-    	float *array2 = (float*)malloc(N * sizeof(float));
-    	float *array3 = (float*)malloc(N * sizeof(float));
-    	float *result = (float*)malloc(N * sizeof(float));
+    float *receive = (float*)malloc(n * sizeof(float));
+    float *array2 = (float*)malloc(N * sizeof(float));
+    float *array3 = (float*)malloc(N * sizeof(float));
+    float *result = (float*)malloc(N * sizeof(float));
     
-    	for(i=0; i<N; i++) {
+    for(i=0; i<N; i++) {
 		array2[i] = 0; 
 		array3[i] = 0;
    	}
     
-    	cudaMalloc((void**)&d_array, arraysize);				
-    	cudaMalloc((void**)&d_array2, arraysize);
-    	cudaMalloc((void**)&d_array3, arraysize);
+    cudaMalloc((void**)&d_array, arraysize);				
+    cudaMalloc((void**)&d_array2, arraysize);
+    cudaMalloc((void**)&d_array3, arraysize);
 	cudaMalloc((void**)&d_receive, receivesize);
     
-    	TRY(cudaMemcpy(d_array2, array2, arraysize, cudaMemcpyHostToDevice)); 
+    TRY(cudaMemcpy(d_array2, array2, arraysize, cudaMemcpyHostToDevice)); 
     
-    	int rows = n / numberoftasks; 
+    int rows = n / numberoftasks; 
     
-    	dim3 dimBlock(BLOCKSIZE, BLOCKSIZE);									
+    dim3 dimBlock(BLOCKSIZE, BLOCKSIZE);									
 	dim3 dimGrid((int)ceil(n/BLOCKSIZE),(int)ceil(rows/BLOCKSIZE));
 	
 	if (rank == 0)
@@ -182,14 +190,14 @@ float* shortest(float* array, int n, int numberoftasks, int rank) {
 		printf("\nBlocksgröße = %dx%d; Gridgröße = %dx%d\n\n", BLOCKSIZE, BLOCKSIZE, (rows / BLOCKSIZE), (n / BLOCKSIZE));
 	}
     
-    	gettimeofday(&start, NULL);         						
-    	TRY(cudaMemcpy(d_array, array, arraysize, cudaMemcpyHostToDevice));   
+    gettimeofday(&start, NULL);         						
+    TRY(cudaMemcpy(d_array, array, arraysize, cudaMemcpyHostToDevice));   
 	
 	// Kernelaufruf für Floyd-Marshall-Algorithmus
 
-    	shortestPath1<<<dimGrid,dimBlock>>>(d_array, d_array2, n, rows, rank);           
+    shortestPath1<<<dimGrid,dimBlock>>>(d_array, d_array2, n, rows, rank);           
  
-    	TRY(cudaMemcpy(array3, d_array2, arraysize, cudaMemcpyDeviceToHost));
+    TRY(cudaMemcpy(array3, d_array2, arraysize, cudaMemcpyDeviceToHost));
 	TRY(cudaMemcpy(d_array3, array3, arraysize, cudaMemcpyHostToDevice));
 	TRY(cudaMemcpy(d_array, array, arraysize, cudaMemcpyHostToDevice));
 
@@ -347,18 +355,18 @@ int main(int argc, char *argv[]) {
    	MPI_Barrier(MPI_COMM_WORLD);
  
    
-    	int number = N / MPISize;    
+    int number = N / MPISize;    
       
       
-    	MPI_Datatype rowtype;
-    	MPI_Type_contiguous(number, MPI_FLOAT, &rowtype);      
-    	MPI_Type_commit(&rowtype);
+    MPI_Datatype rowtype;
+    MPI_Type_contiguous(number, MPI_FLOAT, &rowtype);      
+    MPI_Type_commit(&rowtype);
    
-      	//Rank 0 splittet den Array; Array0 ist für die Gewichtung der einzelnen Prozesse zuständig
-      	MPI_Scatter(array1, number, MPI_FLOAT, array0, number, MPI_FLOAT, 0, MPI_COMM_WORLD);
+    //Rank 0 splittet den Array; Array0 ist für die Gewichtung der einzelnen Prozesse zuständig
+    MPI_Scatter(array1, number, MPI_FLOAT, array0, number, MPI_FLOAT, 0, MPI_COMM_WORLD);
      	      
-      	if(MPIRank == 0)
-        	memcpy(array0, array1, number * sizeof(float));              
+    if(MPIRank == 0)
+        memcpy(array0, array1, number * sizeof(float));              
 
   	float *resultarray;
  	
