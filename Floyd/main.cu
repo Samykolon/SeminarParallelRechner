@@ -1,3 +1,5 @@
+// Teile des Codes stammen aus https://github.com/VasilisGks/All-Pairs-Shortest-Pat
+
 #include <stdio.h>
 #include <mpi.h>
 #include <stdlib.h>
